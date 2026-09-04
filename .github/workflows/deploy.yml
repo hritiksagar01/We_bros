@@ -1,0 +1,74 @@
+name: Deploy to AWS EC2
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  deploy:
+    name: Deploy Application to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies (Validation & Cache)
+        run: npm ci
+
+      - name: Copy project files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          source: "./*"
+          target: "~/webros"
+          rm: false
+          strip_components: 0
+
+      - name: Execute deployment commands via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          script: |
+            # Load environment (supports NVM and standard system node paths)
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            export PATH=$PATH:/usr/bin:/usr/local/bin:$HOME/.nvm/versions/node/$(nvm current 2>/dev/null)/bin
+
+            echo "🚀 Navigating to project directory..."
+            cd ~/webros
+
+            echo "📦 Installing production dependencies..."
+            npm install --omit=dev
+
+            # Ensure PM2 is installed globally
+            if ! command -v pm2 &> /dev/null; then
+              echo "⚙️ PM2 not found. Installing PM2..."
+              npm install -g pm2
+            fi
+
+            echo "🔄 Starting / Reloading application with PM2..."
+            if [ -f "ecosystem.config.cjs" ]; then
+              pm2 startOrReload ecosystem.config.cjs --update-env
+            else
+              pm2 restart webros || pm2 start server.js --name webros
+            fi
+
+            # Persist PM2 configuration across server restarts
+            pm2 save
+
+            echo "✅ Deployment completed successfully!"

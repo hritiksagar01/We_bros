@@ -1,0 +1,22 @@
+{
+  "name": "webros-coming-soon",
+  "version": "1.0.0",
+  "description": "WeBros Coming Soon Landing Page",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "landing-page",
+    "coming-soon",
+    "webros",
+    "nodejs"
+  ],
+  "author": "WeBros",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
